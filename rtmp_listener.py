@@ -21,7 +21,7 @@ producer = KafkaProducer(
 )
 
 # Dirección RTMP (ajusta según tu configuración)
-RTMP_URL = "rtmp://127.0.0.1/live/stream"  # Cambia si el stream no corre localmente
+RTMP_URL = "rtmp://127.0.0.1/live/stream2"  # Cambia si el stream no corre localmente
 # Si el stream viene de otra máquina (por ejemplo, FFmpeg en otra EC2), usa la IP pública:
 # RTMP_URL = "rtmp://<ip-pública-fase-c>/live/stream"
 
