@@ -21,7 +21,7 @@ producer = KafkaProducer(
 
 
 # Dirección RTMP
-RTMP_URL = "rtmp://0.0.0.0/live/stream"
+RTMP_URL = "rtmp://127.0.0.1/live/stream"  # si el stream corre en la misma máquina
 
 # OpenCV para abrir el stream RTMP
 cap = cv2.VideoCapture(RTMP_URL)
