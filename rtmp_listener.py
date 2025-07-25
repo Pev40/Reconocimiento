@@ -3,7 +3,7 @@ import cv2
 
 # Dirección RTMP enviada desde el cliente (PC con FFmpeg)
 # Asegúrate de cambiarlo si usas otro puerto o ruta
-RTMP_URL = "rtmp://100.24.149.104/live/stream"
+RTMP_URL = "rtmp://0.0.0.0/live/stream"
 
 # OpenCV puede abrir directamente una fuente RTMP
 cap = cv2.VideoCapture(RTMP_URL)

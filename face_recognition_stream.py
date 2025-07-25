@@ -22,7 +22,7 @@ for filename in os.listdir(KNOWN_FACES_DIR):
             known_names.append(os.path.splitext(filename)[0])
 
 # RTMP stream
-RTMP_URL = "rtmp://100.24.149.104/live/stream"
+RTMP_URL = "rtmp://localhost/live/stream"
 cap = cv2.VideoCapture(RTMP_URL)
 
 # Conexión a MongoDB
