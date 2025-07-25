@@ -23,7 +23,7 @@ OUTPUT_TOPIC = "eventos"    # Envía eventos a MongoDB
 
 # Configuración de HDFS
 HDFS_URL = "http://172.31.18.31:9870"  # Reemplaza con la IP privada del NameNode
-HDFS_USER = "hadoop"
+HDFS_USER = "ubuntu"
 hdfs_client = InsecureClient(HDFS_URL, user=HDFS_USER)
 
 # Configuración de MongoDB Atlas
