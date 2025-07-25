@@ -4,6 +4,14 @@ from kafka import KafkaProducer, KafkaConsumer
 from hdfs import InsecureClient
 from pymongo import MongoClient
 import face_recognition
+import face_recognition_models
+
+face_recognition.api.pose_predictor_model_location = "/home/ubuntu/.face_recognition_models/shape_predictor_68_face_landmarks.dat"
+face_recognition.api.face_recognition_model_location = "/home/ubuntu/.face_recognition_models/dlib_face_recognition_resnet_model_v1.dat"
+face_recognition.api.cnn_face_detector_model_location = "/home/ubuntu/.face_recognition_models/mmod_human_face_detector.dat"
+
+print("✅ Los modelos se han cargado correctamente.")
+
 import json
 import time
 from datetime import datetime
