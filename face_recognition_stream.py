@@ -1,81 +1,119 @@
 import cv2
-import face_recognition
-import os
 import numpy as np
-from datetime import datetime
+from kafka import KafkaProducer, KafkaConsumer
+from hdfs import InsecureClient
 from pymongo import MongoClient
+import face_recognition
+import json
+import time
+from datetime import datetime
 
-# Ruta a la carpeta de rostros conocidos
-KNOWN_FACES_DIR = "known_faces"
+# Configuración de Kafka
+KAFKA_BROKER = "54.146.92.176:9092,54.82.61.71:9092,3.88.98.112:9092"
+INPUT_TOPIC = "raw_frames"  # Recibe frames desde rtmp_listener.py
+OUTPUT_TOPIC = "eventos"    # Envía eventos a MongoDB
 
-# Cargar rostros conocidos
-known_encodings = []
-known_names = []
+# Configuración de HDFS
+HDFS_URL = "http://172.31.18.31:9870"  # Reemplaza con la IP privada del NameNode
+HDFS_USER = "hadoop"
+hdfs_client = InsecureClient(HDFS_URL, user=HDFS_USER)
 
-print("🔍 Cargando rostros conocidos...")
-for filename in os.listdir(KNOWN_FACES_DIR):
-    if filename.endswith(".jpg") or filename.endswith(".png"):
-        image = face_recognition.load_image_file(f"{KNOWN_FACES_DIR}/{filename}")
-        encoding = face_recognition.face_encodings(image)
-        if encoding:
-            known_encodings.append(encoding[0])
-            known_names.append(os.path.splitext(filename)[0])
+# Configuración de MongoDB Atlas
+MONGO_URI = "mongodb+srv://pvizcarra:<db_password>@cluster0.y0xt7dp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+# Reemplaza <db_password> con la contraseña real del usuario pvizcarra en MongoDB Atlas
+MONGO_URI = MONGO_URI.replace("<db_password>", "11eHEjDtKfWE6sNs")  # Cambia esto
+mongo_client = MongoClient(MONGO_URI)
+db = mongo_client["eventos_db"]
+collection = db["eventos"]
 
-# RTMP stream
-RTMP_URL = "rtmp://localhost/live/stream"
-cap = cv2.VideoCapture(RTMP_URL)
+# Configuración del productor y consumidor de Kafka
+producer = KafkaProducer(bootstrap_servers=KAFKA_BROKER)
+consumer = KafkaConsumer(INPUT_TOPIC, bootstrap_servers=KAFKA_BROKER, auto_offset_reset='earliest', group_id='face_recognition_group')
 
-# Conexión a MongoDB
-client = MongoClient("mongodb://localhost:27017/")
-db = client["asistencia"]
-collection = db["registros"]
+# Función para guardar frames en HDFS
+def save_to_hdfs(image, filename, path):
+    try:
+        _, buffer = cv2.imencode('.jpg', image)
+        hdfs_path = f"{path}/{filename}"
+        hdfs_client.write(hdfs_path, buffer.tobytes(), overwrite=True)
+        print(f"Guardado {filename} en {path}")
+    except Exception as e:
+        print(f"Error al guardar en HDFS: {e}")
 
-print("📡 Procesando video...")
+# Función para guardar logs en HDFS
+def log_to_hdfs(message, filename):
+    try:
+        hdfs_path = f"/data/logs/{filename}"
+        hdfs_client.write(hdfs_path, message.encode('utf-8'), overwrite=True)
+        print(f"Log guardado: {filename}")
+    except Exception as e:
+        print(f"Error al guardar log en HDFS: {e}")
 
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        print("⚠️ Esperando señal...")
-        continue
+# Procesamiento de frames y detección de rostros
+def process_frame(frame_data):
+    try:
+        # Decodificar el frame recibido (asumimos que es un array de bytes)
+        nparr = np.frombuffer(frame_data, np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-    # Reducir tamaño para más velocidad
-    small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
-    rgb_small = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
+        if frame is None:
+            print("Frame no decodificado correctamente")
+            return
 
-    # Detección de rostros
-    face_locations = face_recognition.face_locations(rgb_small)
-    face_encodings = face_recognition.face_encodings(rgb_small, face_locations)
+        # Detectar rostros
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        face_locations = face_recognition.face_locations(rgb_frame)
+        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
 
-    for face_encoding, face_location in zip(face_encodings, face_locations):
-        matches = face_recognition.compare_faces(known_encodings, face_encoding, tolerance=0.5)
-        name = "Desconocido"
+        # Generar nombre de archivo único basado en timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        frame_filename = f"frame_{timestamp}.jpg"
+        image_filename = f"image_{timestamp}.jpg"
 
-        face_distances = face_recognition.face_distance(known_encodings, face_encoding)
-        best_match = np.argmin(face_distances)
+        # Guardar el frame original en HDFS
+        save_to_hdfs(frame, frame_filename, "/data/frames")
 
-        if matches[best_match]:
-            name = known_names[best_match]
+        # Procesar y guardar imagen con rostros detectados
+        if face_locations:
+            for (top, right, bottom, left) in face_locations:
+                cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
+            save_to_hdfs(frame, image_filename, "/data/images")
 
-            # Guardar en MongoDB
-            now = datetime.now()
-            data = {
-                "nombre": name,
-                "fecha": now.strftime("%Y-%m-%d"),
-                "hora": now.strftime("%H:%M:%S")
+            # Crear evento JSON
+            event = {
+                "timestamp": timestamp,
+                "frame_id": frame_filename,
+                "image_id": image_filename,
+                "face_count": len(face_locations),
+                "status": "face_detected"
             }
-            collection.insert_one(data)
-            print(f"✅ {name} detectado a las {data['hora']}")
+            event_json = json.dumps(event).encode('utf-8')
 
-        # Dibujar rectángulo
-        top, right, bottom, left = [v * 4 for v in face_location]  # volver al tamaño original
-        cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 0), 2)
-        cv2.putText(frame, name, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+            # Enviar evento a Kafka
+            producer.send(OUTPUT_TOPIC, event_json)
 
-    # Mostrar video (opcional)
-    cv2.imshow("Reconocimiento Facial", frame)
+            # Guardar evento en MongoDB Atlas
+            collection.insert_one(event)
+            print(f"Evento guardado en MongoDB y enviado a Kafka: {event}")
 
-    if cv2.waitKey(1) & 0xFF == ord("q"):
-        break
+        # Guardar log
+        log_message = f"Procesado frame {frame_filename} a las {timestamp} con {len(face_locations)} rostros detectados\n"
+        log_to_hdfs(log_message, f"log_{timestamp}.txt")
 
-cap.release()
-cv2.destroyAllWindows()
+    except Exception as e:
+        print(f"Error procesando frame: {e}")
+
+# Bucle principal para consumir frames de Kafka
+if __name__ == "__main__":
+    print("Iniciando consumidor de Kafka para detección de rostros...")
+    for message in consumer:
+        try:
+            frame_data = message.value
+            process_frame(frame_data)
+        except Exception as e:
+            print(f"Error en el consumidor: {e}")
+        time.sleep(0.1)  # Control de velocidad para evitar sobrecarga
+
+    # Cerrar conexiones al finalizar (opcional, manejado por el bucle)
+    producer.close()
+    mongo_client.close()
