@@ -60,12 +60,18 @@ def log_to_hdfs(message, filename):
 # Procesamiento de frames y detección de rostros
 def process_frame(frame_data):
     try:
-        # Decodificar el frame recibido (asumimos que es un array de bytes)
+        # Depuración: Verificar el contenido recibido
+        print(f"Tamaño de frame_data: {len(frame_data)} bytes")
+        if not frame_data or len(frame_data) == 0:
+            print("Frame no decodificado correctamente: datos vacíos o corruptos")
+            return
+
+        # Decodificar el frame recibido
         nparr = np.frombuffer(frame_data, np.uint8)
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
         if frame is None:
-            print("Frame no decodificado correctamente")
+            print("Frame no decodificado correctamente: posible corrupción o formato inválido")
             return
 
         # Detectar rostros
@@ -73,7 +79,7 @@ def process_frame(frame_data):
         face_locations = face_recognition.face_locations(rgb_frame)
         face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
 
-        # Generar nombre de archivo único basado en timestamp
+        # Generar nombre de archivo único
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         frame_filename = f"frame_{timestamp}.jpg"
         image_filename = f"image_{timestamp}.jpg"
@@ -111,8 +117,9 @@ def process_frame(frame_data):
     except Exception as e:
         print(f"Error procesando frame: {e}")
 
-# Bucle principal para consumir frames de Kafka
+# Bucle principal
 if __name__ == "__main__":
+    print("✅ Los modelos se han cargado correctamente.")
     print("Iniciando consumidor de Kafka para detección de rostros...")
     for message in consumer:
         try:
@@ -120,8 +127,7 @@ if __name__ == "__main__":
             process_frame(frame_data)
         except Exception as e:
             print(f"Error en el consumidor: {e}")
-        time.sleep(0.1)  # Control de velocidad para evitar sobrecarga
+        time.sleep(0.1)  # Control de velocidad
 
-    # Cerrar conexiones al finalizar (opcional, manejado por el bucle)
     producer.close()
     mongo_client.close()
