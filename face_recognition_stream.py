@@ -63,15 +63,18 @@ def process_frame(frame_data):
         # Depuración: Verificar el contenido recibido
         print(f"Tamaño de frame_data: {len(frame_data)} bytes")
         if not frame_data or len(frame_data) == 0:
-            print("Frame no decodificado correctamente: datos vacíos o corruptos")
+            print("Frame no decodificado: datos vacíos o corruptos")
             return
 
-        # Decodificar el frame recibido
+        # Intentar decodificar como JPEG
         nparr = np.frombuffer(frame_data, np.uint8)
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
         if frame is None:
-            print("Frame no decodificado correctamente: posible corrupción o formato inválido")
+            # Depuración adicional: Guardar los bytes recibidos para análisis
+            with open("/tmp/corrupted_frame.bin", "wb") as f:
+                f.write(frame_data)
+            print("Frame no decodificado: posible corrupción. Guardado en /tmp/corrupted_frame.bin para análisis")
             return
 
         # Detectar rostros
