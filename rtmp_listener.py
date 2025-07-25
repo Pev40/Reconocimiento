@@ -6,13 +6,19 @@ import json
 
 # Configuración de Kafka
 KAFKA_BROKER = "54.146.92.176:9092,54.82.61.71:9092,3.88.98.112:9092" # Cambia por la IP/DNS del servidor Kafka
+
 TOPIC = "raw_frames"
 
 # Inicializar productor de Kafka
 producer = KafkaProducer(
-    bootstrap_servers=[KAFKA_BROKER],
+    bootstrap_servers=[
+        "54.146.92.176:9092",
+        "54.82.61.71:9092",
+        "3.88.98.112:9092"
+    ],
     value_serializer=lambda v: json.dumps(v).encode("utf-8")
 )
+
 
 # Dirección RTMP
 RTMP_URL = "rtmp://0.0.0.0/live/stream"
