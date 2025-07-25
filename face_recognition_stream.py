@@ -126,11 +126,18 @@ if __name__ == "__main__":
     print("Iniciando consumidor de Kafka para detección de rostros...")
     for message in consumer:
         try:
-            frame_data = message.value
+            # Decodificar el mensaje JSON
+            msg = json.loads(message.value.decode("utf-8"))
+
+            # Convertir el string hexadecimal de vuelta a bytes
+            frame_data = bytes.fromhex(msg["frame"])
+
+            # Procesar el frame
             process_frame(frame_data)
+
         except Exception as e:
             print(f"Error en el consumidor: {e}")
-        time.sleep(0.1)  # Control de velocidad
+        time.sleep(0.1)
 
     producer.close()
     mongo_client.close()
